@@ -1,0 +1,30 @@
+html {
+	font-size: 62.5%;
+}
+
+body {
+	margin: 2rem;
+	padding: 0;
+	font-family: sans-serif;
+	color: darkblue;
+	background-color: white;
+}
+
+.section {
+	margin: .5rem 0;
+	padding: .5rem;
+	border: .5px solid darkblue;
+}
+
+.subsection {
+	margin-top: .5rem;
+}
+
+button, select {
+	width: 5rem;
+	margin-right: 1rem;
+}
+
+label {
+	font-size: .8rem;
+}

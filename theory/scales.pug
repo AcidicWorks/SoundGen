@@ -1,0 +1,116 @@
+extends layout
+
+block style 
+    style. 
+        #graph {
+            width: 100%;
+            height: 10rem;
+        }
+
+block body
+    div.section SCALES
+        div.subsection
+            label Tonic 
+                select#tonics
+            label Octave 
+                select#octaves
+                    option(value=1) 1
+                    option(value=2) 2
+                    option(value=3 selected) 3
+                    option(value=4) 4
+                    option(value=5) 5
+                    option(value=6) 6
+                    option(value=7) 7
+            label Wave form 
+                select#waveForm
+                    option(value='sine') sine
+                    option(value='square' selected) square
+                    option(value='triangle') triangle
+                    option(value='sawtooth') sawtooth
+            label duration(s)
+                select#duration
+                    option(value='0.10') 0.10
+                    option(value='0.25' selected) 0.25
+                    option(value='0.50') 0.50
+                    option(value='0.75') 0.75
+                    option(value='1.00') 1.00
+            label Show frequencies
+                input#showFreq(type='checkbox') 
+        div.subsection#buttons     
+            label#notes   
+    div
+        canvas#graph
+
+block script
+    script
+        include includes/AudioGraph.js
+        include includes/AudioTone.js
+
+    script.
+        const tone = new AudioTone()
+
+        const NOTES = ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']
+        const STEPS = {
+            'ionian':            [2, 2, 1, 2, 2, 2, 1],
+            'dorian':            [2, 1, 2, 2, 2, 1, 2],
+            'phrygian':          [1, 2, 2, 2, 1, 2, 2],
+            'lydian':            [2, 2, 2, 1, 2, 2, 1],
+            'mixolydian':        [2, 2, 1, 2, 2, 1, 2],
+            'aeolian':           [2, 1, 2, 2, 1, 2, 2],
+            'locrian':           [1, 2, 2, 1, 2, 2, 2],
+            'blues':             [3, 2, 1, 1, 3, 2],
+            'minor pentatonic':  [3, 2, 2, 3, 2],
+            'major pentatonic':  [2, 2, 3, 2, 3],
+            'hungarian minor':   [2, 1, 3, 1, 1, 3, 1],
+            'phrygian dominant': [1, 3, 1, 2, 1, 2, 2],
+        }
+
+        for (let i = 0; i < NOTES.length; i++) {
+            const note = NOTES[i]
+            const option = document.createElement('option')
+            option.textContent = note
+            option.value = i
+            tonics.appendChild(option)
+        }
+
+        for (const scaleName of Object.keys(STEPS)) {
+            const div = document.createElement('div')
+            const button = document.createElement('button')
+            button.id = scaleName
+            button.textContent = scaleName
+            button.onclick = () => { 
+                notes.textContent = ''
+                div.appendChild(notes)
+                playScale(scaleName) 
+            }
+            div.appendChild(button)
+            buttons.appendChild(div)
+        }
+
+        async function playScale(name) {
+            tone.stop()
+            const scaleSteps = STEPS[name]
+            const tonicIndex = Number(tonics.value)
+            const seconds = Number(duration.value)
+            const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext)
+            console.log('scale begin', name)
+            try {
+                let index = 0
+                for (const steps of scaleSteps) {
+                    await tone.play(selectFrequency(tonicIndex, index), seconds, waveForm.value, {analyser:graph.analyser})
+                    index += steps
+                }
+                await tone.play(selectFrequency(tonicIndex, index), seconds, waveForm.value, {analyser:graph.analyser})
+            }
+            catch(error) {
+                console.log(error.message)
+            }
+        }
+
+        function selectFrequency(tonicIndex, index) {
+            const frequency = tone.semitoneStep(tonicIndex, index, octaves.value)
+            notes.textContent += `${NOTES[(tonicIndex + index) % NOTES.length]} `
+            if (showFreq.checked)
+                notes.textContent += `[${(frequency.toFixed(3))}] `
+            return frequency
+        }
