@@ -69,6 +69,10 @@
     <script src="/SoundGen/js/AudioTone.js"></script>
     <script src="/SoundGen/js/AudioGraph.js"></script>
     <script>
+        const graphOptions = {
+            backgroundColor: 'darkblue',
+            foregroundColor: 'white',
+        }
         const tone = new AudioTone()
         const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext)
         const shaper = AudioTone.saturation(1, 0.01)

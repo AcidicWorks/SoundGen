@@ -1,7 +1,8 @@
 class AudioGraph {
-    constructor(graphCanvas, audioContext) {
-        this.backgroundColor = 'rgb(200, 200, 200)'
-        this.foregroundColor = 'rgb(0, 0, 0)'
+    constructor(graphCanvas, audioContext, options) {
+        options = options ? options : {};
+        this.backgroundColor = options.backgroundColor ? options.backgroundColor : 'rgb(200, 200, 200)'
+        this.foregroundColor = options.foregroundColor ? options.foregroundColor : 'rgb(0, 0, 0)'
         this.canvas = graphCanvas
         this.canvasContext = this.canvas.getContext('2d')
         this.analyser = audioContext.createAnalyser()
