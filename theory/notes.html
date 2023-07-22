@@ -10,6 +10,7 @@
             }
         </style>
     </head>
+
     <body>
         <div class="section">NOTES
             <div class="subsection">
@@ -65,22 +66,22 @@
         <div>
             <canvas id="graph"></canvas>
         </div>        
-</body>
+    </body>
+
     <script src="/SoundGen/js/AudioTone.js"></script>
     <script src="/SoundGen/js/AudioGraph.js"></script>
     <script>
+        const toneOptions = {
+            analyser: graph.analyser, 
+            //- shaper: AudioTone.saturation(1, .1)
+            shaper: AudioTone.bitCrusher(3)
+        }
         const graphOptions = {
             backgroundColor: 'darkblue',
             foregroundColor: 'white',
         }
         const tone = new AudioTone()
         const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext, graphOptions)
-        const shaper = AudioTone.saturation(1, 0.01)
-        const toneOptions = {
-            analyser: graph.analyser, 
-            //- shaper: AudioTone.saturation(1, .1)
-            shaper: AudioTone.bitCrusher(3)
-        }
 
         function playNote() {
             tone.stop()
