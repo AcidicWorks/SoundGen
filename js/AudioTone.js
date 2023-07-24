@@ -1,5 +1,9 @@
 class AudioTone {
+    static NOTES = ['A', 'A#/Bb', 'B', 'C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab'] 
+    static OCTAVES = [1, 2, 3, 4, 5, 6, 7]
+    static WAVES = ['sine', 'square', 'triangle', 'sawtooth']  
     static A440 = 440.0
+    static MIDDLE_OCTAVE = 4
     static SEMITONE = Math.pow(2, 1/12)
 
     constructor() {
@@ -10,7 +14,7 @@ class AudioTone {
     get audioContext() { return this._audioContext }
 
     semitoneStep(tonicIndex, n, octave) {
-        const octaveFactor = Math.pow(2, Number(octave) - 4)
+        const octaveFactor = Math.pow(2, Number(octave) - MIDDLE_OCTAVE)
         const tonicFreq = AudioTone.A440 * octaveFactor * Math.pow(AudioTone.SEMITONE, tonicIndex)
         return tonicFreq * Math.pow(AudioTone.SEMITONE, n)
     }   
