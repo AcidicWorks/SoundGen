@@ -7,8 +7,11 @@
             #tonics {
                 width: 5rem;
             }
-            #wave {
+            #waves {
                 width: 8rem;
+            }
+            #shaper {
+                width: 10rem;
             }
             #graph {
                 width: 100%;
@@ -21,48 +24,32 @@
         <div class="section">NOTES
             <div class="subsection">
                 <label for="tonics">Tonic</label>  
-                    <select id="tonics">
-                        <!-- <option value="0">A</option>
-                        <option value="1">A#/Bb</option>
-                        <option value="2">B</option>
-                        <option value="3">C</option>
-                        <option value="4">C#/Db</option>
-                        <option value="5">D</option>
-                        <option value="6">D#/Eb</option>
-                        <option value="7">E</option>
-                        <option value="8">F</option>
-                        <option value="9">F#/Gb</option>
-                        <option value="10">G</option>
-                        <option value="11">G#/Ab</option> -->
-                    </select>
+                <select id="tonics"></select>
                 <label for="octaves">Octave</label>  
-                    <select id="octaves">
-                        <!-- <option value="1">1</option>
-                        <option value="2">2</option>
-                        <option value="3">3</option>
-                        <option value="4" selected>4</option>
-                        <option value="5">5</option>
-                        <option value="6">6</option>
-                        <option value="7">7</option> -->
-                    </select>
-                <label for="wave">Wave form</label>  
-                    <select id="wave">
-                        <!-- <option value="sine">sine</option>
-                        <option value="square">square</option>
-                        <option value="triangle">triangle</option>
-                        <option value="sawtooth">sawtooth</option> -->
-                    </select>
+                <select id="octaves"></select>
+                <label for="waves">Wave</label>  
+                <select id="waves"></select>
                 <label for="duration">duration (s)</label> 
-                    <select id="duration">
-                        <option value="0.10">0.10</option>
-                        <option value="0.25">0.25</option>
-                        <option value="0.50">0.50</option>
-                        <option value="0.75">0.75</option>
-                        <option value="1.00">1.00</option>
-                        <option value="2.00">2.00</option>
-                        <option value="4.00">4.00</option>
-                        <option value="60">60</option>
-                    </select>
+                <select id="duration">
+                    <option value="0.10">0.10</option>
+                    <option value="0.25">0.25</option>
+                    <option value="0.50">0.50</option>
+                    <option value="0.75">0.75</option>
+                    <option value="1.00">1.00</option>
+                    <option value="2.00" selected>2.00</option>
+                    <option value="4.00">4.00</option>
+                    <option value="60">60</option>
+                </select>
+            </div>
+            <div class="subsection">
+                <label for="Shaper">Shaper</label>  
+                <select id="shaper" onchange="selectShaper()">
+                    <option value="none">None</option>
+                    <option value="bitcrusher">Bit crusher</option>
+                    <option value="distortion">Distortion</option>
+                    <option value="saturation">Saturation</option>
+                </select>
+                <span id="shaperKnobs"></span>
             </div>
             <div class="subsection" id="buttons">  
                 <button onclick="playNote()">Play</button>
@@ -76,10 +63,20 @@
 
     <script src="/SoundGen/js/AudioTone.js"></script>
     <script src="/SoundGen/js/AudioGraph.js"></script>
+    <script src="/SoundGen/js/knob.js"></script>
+
     <script>
         for (let i = 0; i < AudioTone.NOTES.length; i++)
-            tonics.appendChild(new Option(AudioTone.NOTES[0], i))
+            tonics.appendChild(new Option(AudioTone.NOTES[i], i))
+        tonics.options[3].selected = true
+        for (let i = 0; i < AudioTone.OCTAVES.length; i++)
+            octaves.appendChild(new Option(AudioTone.OCTAVES[i], i + 1))
+        octaves.options[3].selected = true
+        for (let i = 0; i < AudioTone.WAVES.length; i++)
+            waves.appendChild(new Option(AudioTone.WAVES[i], AudioTone.WAVES[i]))
+        waves.options[3].selected = true
     </script>
+
     <script>
         const graphOptions = {
             backgroundColor: 'darkblue',
@@ -89,8 +86,7 @@
         const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext, graphOptions)
         const toneOptions = {
             analyser: graph.analyser, 
-            //- shaper: AudioTone.saturation(1, .1)
-            shaper: AudioTone.bitCrusher(3)
+            shaper: null,
         }
 
         function playNote() {
@@ -98,14 +94,45 @@
             const tonicIndex = Number(tonics.value)
             const seconds = Number(duration.value)
             const frequency = tone.semitoneStep(tonicIndex, 0, octaves.value)
+            toneOptions.shaper = createShaper()
             console.log('note begin', frequency)
-            tone.play(frequency, seconds, wave.value, toneOptions)
+            tone.play(frequency, seconds, waves.value, toneOptions)
                 .then(result => console.log(result))
                 .catch(error => console.log(error.message))
         }
 
         function stopNote() {
             tone.stop()
+        }
+
+        let createShaper = () => { return null }
+
+        function selectShaper() {
+            while (shaperKnobs.firstChild) 
+                shaperKnobs.removeChild(shaperKnobs.firstChild)
+
+            switch (shaper.value) {
+                case 'bitcrusher':
+                    const kBits = new Knob('Bits', 1, 16, 3, 1)
+                    shaperKnobs.appendChild(kBits.knob)
+                    createShaper = () => { return AudioTone.bitCrusher(kBits.value) }
+                    break;
+                case 'distortion':
+                    const kAmount = new Knob('Amount', 0, 1, .5, .1)
+                    shaperKnobs.appendChild(kAmount.knob)
+                    createShaper = () => { return AudioTone.distortion(kAmount.value) }
+                    break;
+                case 'saturation':
+                    const kHeight = new Knob('Height', -1, 1, 1, .1)
+                    const kAttack = new Knob('Attack', 0, 1, .5, .1)
+                    shaperKnobs.appendChild(kHeight.knob)
+                    shaperKnobs.appendChild(kAttack.knob)
+                    createShaper = () => { return AudioTone.saturation(kHeight.value, kAttack.value) }
+                    break;
+                default:
+                    createShaper = () => { return null }
+                    break;
+            }
         }
     </script>
 </html> 

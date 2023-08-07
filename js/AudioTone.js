@@ -14,7 +14,7 @@ class AudioTone {
     get audioContext() { return this._audioContext }
 
     semitoneStep(tonicIndex, n, octave) {
-        const octaveFactor = Math.pow(2, Number(octave) - MIDDLE_OCTAVE)
+        const octaveFactor = Math.pow(2, Number(octave) - AudioTone.MIDDLE_OCTAVE)
         const tonicFreq = AudioTone.A440 * octaveFactor * Math.pow(AudioTone.SEMITONE, tonicIndex)
         return tonicFreq * Math.pow(AudioTone.SEMITONE, n)
     }   
@@ -94,7 +94,20 @@ class AudioTone {
         return curve;
     }
 
+    static distortion(amount) {
+        amount = AudioTone.clamp(amount, 0, 1)
+        const k = amount * 100
+        const n_samples = 44100
+        const curve = new Float32Array(n_samples)
+        const deg = Math.PI / 180
+        for (let i = 0; i < n_samples; i++) {
+            const x = 2*i/n_samples - 1
+            curve[i] = (3 + k)*Math.atan(Math.sinh(x*0.25)*5) / (Math.PI + k * Math.abs(x));
+        }
+        return curve;
+    }
+
     static clamp(x, min, max) {
         return Math.max(Math.min(x, max), min);
-      }    
+    }    
 }
