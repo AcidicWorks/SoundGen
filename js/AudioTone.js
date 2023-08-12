@@ -2,6 +2,7 @@ class AudioTone {
     static NOTES = ['A', 'A#/Bb', 'B', 'C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab'] 
     static OCTAVES = [1, 2, 3, 4, 5, 6, 7]
     static WAVES = ['sine', 'square', 'triangle', 'sawtooth']  
+    static SHAPES = ['none', 'bit crusher', 'distortion', 'saturation']
     static A440 = 440.0
     static MIDDLE_OCTAVE = 4
     static SEMITONE = Math.pow(2, 1/12)
