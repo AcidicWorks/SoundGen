@@ -66,6 +66,10 @@
     <script src="/SoundGen/js/AudioGraph.js"></script>
 
     <script>
+        const graphOptions = {
+            backgroundColor: 'darkblue',
+            foregroundColor: 'white',
+        }
         const tone = new AudioTone()
 
         const NOTES = ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']
@@ -110,7 +114,7 @@
             const seconds = Number(duration.value)
             let promises = []
             let index = 0
-            const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext)
+            const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext, graphOptions)
             for (const steps of chordSteps) {
                 index += steps
                 promises.push(tone.play(selectFrequency(tonicIndex, index), seconds, waveForm.value, {analyser:graph.analyser}))
