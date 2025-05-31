@@ -1,35 +1,26 @@
 <!DOCTYPE html>
-<html>
-    <head>
-        <title>Notes</title>
-        <link rel="stylesheet" href="/SoundGen/css/styles.css" />
-        <style>
-            #tonic {
-                width: 8rem;
-            }
-            #wave {
-                width: 8rem;
-            }
-            #shaper {
-                width: 10rem;
-            }
-            #graph {
-                width: 100%;
-                height: 10rem;
-            }
-        </style>
-    </head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notes</title>
+<link rel="stylesheet" href="/style/styles.css?v=6" />
 
-    <body>
-        <div class="section">NOTES
-            <div class="subsection">
+<body>
+    <main>
+        <div class="title">NOTES</div>
+        <div class="options-row">
+            <div class='option'>
                 <label for="tonic">Tonic</label>  
                 <select id="tonic"></select>
+            </div>
+            <div class='option'>
                 <label for="octave">Octave</label>  
                 <select id="octave"></select>
+            </div>
+            <div class='option'>
                 <label for="wave">Wave</label>  
                 <select id="wave"></select>
-                <label for="duration">Duration (s)</label> 
+            </div>
+            <div class='option'>
+                <label for="duration">Seconds</label> 
                 <select id="duration">
                     <option value="0.10">0.10</option>
                     <option value="0.25">0.25</option>
@@ -41,96 +32,100 @@
                     <option value="60">60</option>
                 </select>
             </div>
-            <div class="subsection">
+        </div>
+        <div class="options-row">
+            <div class='option'>
                 <label for="shaper">Shaper</label>  
                 <select id="shaper" onchange="selectShaper()"></select>
+            </div>
+            <div class='option'>
                 <span id="shaperKnobs"></span>
             </div>
-            <div class="subsection" id="buttons">  
-                <button onclick="playNote()">Play</button>
-                <button onclick="stopNote()">Stop</button>
-            </div>
         </div>
-        <div>
-            <canvas id="graph"></canvas>
-        </div>        
-    </body>
+        <div class="button-row">  
+            <button onclick="playNote()">Play</button>
+            <button onclick="stopNote()">Stop</button>
+        </div>
+        <canvas id="graph"></canvas>
+    </main>
+</body>
 
-    <script src="/SoundGen/js/AudioTone.js"></script>
-    <script src="/SoundGen/js/AudioGraph.js"></script>
-    <script src="/SoundGen/js/knob.js"></script>
+<script src="/js/AudioTone.js"></script>
+<script src="/js/AudioGraph.js?v=2"></script>
+<script src="/js/knob.js?v=1"></script>
 
-    <script>
-        for (let i = 0; i < AudioTone.NOTES.length; i++)
-            tonic.appendChild(new Option(AudioTone.NOTES[i], i))
-        tonic.options[3].selected = true
-        for (let i = 0; i < AudioTone.OCTAVES.length; i++)
-            octave.appendChild(new Option(AudioTone.OCTAVES[i], i + 1))
-        octave.options[3].selected = true
-        for (let i = 0; i < AudioTone.WAVES.length; i++)
-            wave.appendChild(new Option(AudioTone.WAVES[i], AudioTone.WAVES[i]))
-        wave.options[3].selected = true
-        for (let i = 0; i < AudioTone.SHAPES.length; i++)
-            shaper.appendChild(new Option(AudioTone.SHAPES[i], AudioTone.SHAPES[i]))
-        shapes.options[0].selected = true
-    </script>
+<script>
+    for (let i = 0; i < AudioTone.NOTES.length; i++)
+        tonic.appendChild(new Option(AudioTone.NOTES[i], i))
+    tonic.options[3].selected = true
+    for (let i = 0; i < AudioTone.OCTAVES.length; i++)
+        octave.appendChild(new Option(AudioTone.OCTAVES[i], i + 1))
+    octave.options[3].selected = true
+    for (let i = 0; i < AudioTone.WAVES.length; i++)
+        wave.appendChild(new Option(AudioTone.WAVES[i], AudioTone.WAVES[i]))
+    wave.options[3].selected = true
+    for (let i = 0; i < AudioTone.SHAPES.length; i++)
+        shaper.appendChild(new Option(AudioTone.SHAPES[i], AudioTone.SHAPES[i]))
+    shaper.options[0].selected = true
+</script>
 
-    <script>
-        const graphOptions = {
-            backgroundColor: 'darkblue',
-            foregroundColor: 'white',
+<script>
+    const graphOptions = {
+        backgroundColor: 'lightyellow',
+        foregroundColor: 'rgb(14, 93, 196)',
+    }
+    const tone = new AudioTone()
+    const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext, graphOptions)
+    const toneOptions = {
+        analyser: graph.analyser, 
+        shaper: null,
+    }
+
+    document.querySelector('#graph').style.height = document.querySelector('main').offsetHeight + 'px'
+
+    function playNote() {
+        tone.stop()
+        const tonicIndex = Number(tonic.value)
+        const seconds = Number(duration.value)
+        const frequency = tone.semitoneStep(tonicIndex, 0, octave.value)
+        toneOptions.shaper = createShaper()
+        console.log('note begin', frequency)
+        tone.play(frequency, seconds, wave.value, toneOptions)
+            .then(result => console.log(result))
+            .catch(error => console.log(error.message))
+    }
+
+    function stopNote() {
+        tone.stop()
+    }
+
+    let createShaper = () => { return null }
+
+    function selectShaper() {
+        while (shaperKnobs.firstChild) 
+            shaperKnobs.removeChild(shaperKnobs.firstChild)
+
+        switch (shaper.value) {
+            case 'bit crusher':
+                const kBits = new Knob('Bits', 1, 16, 3, 1)
+                shaperKnobs.appendChild(kBits.knob)
+                createShaper = () => { return AudioTone.bitCrusher(kBits.value) }
+                break;
+            case 'distortion':
+                const kAmount = new Knob('Amount', 0, 1, .5, .1)
+                shaperKnobs.appendChild(kAmount.knob)
+                createShaper = () => { return AudioTone.distortion(kAmount.value) }
+                break;
+            case 'saturation':
+                const kHeight = new Knob('Height', -1, 1, 1, .1)
+                const kAttack = new Knob('Attack', 0, 1, .5, .1)
+                shaperKnobs.appendChild(kHeight.knob)
+                shaperKnobs.appendChild(kAttack.knob)
+                createShaper = () => { return AudioTone.saturation(kHeight.value, kAttack.value) }
+                break;
+            default:
+                createShaper = () => { return null }
+                break;
         }
-        const tone = new AudioTone()
-        const graph = new AudioGraph(document.querySelector('#graph'), tone.audioContext, graphOptions)
-        const toneOptions = {
-            analyser: graph.analyser, 
-            shaper: null,
-        }
-
-        function playNote() {
-            tone.stop()
-            const tonicIndex = Number(tonic.value)
-            const seconds = Number(duration.value)
-            const frequency = tone.semitoneStep(tonicIndex, 0, octave.value)
-            toneOptions.shaper = createShaper()
-            console.log('note begin', frequency)
-            tone.play(frequency, seconds, wave.value, toneOptions)
-                .then(result => console.log(result))
-                .catch(error => console.log(error.message))
-        }
-
-        function stopNote() {
-            tone.stop()
-        }
-
-        let createShaper = () => { return null }
-
-        function selectShaper() {
-            while (shaperKnobs.firstChild) 
-                shaperKnobs.removeChild(shaperKnobs.firstChild)
-
-            switch (shaper.value) {
-                case 'bit crusher':
-                    const kBits = new Knob('Bits', 1, 16, 3, 1)
-                    shaperKnobs.appendChild(kBits.knob)
-                    createShaper = () => { return AudioTone.bitCrusher(kBits.value) }
-                    break;
-                case 'distortion':
-                    const kAmount = new Knob('Amount', 0, 1, .5, .1)
-                    shaperKnobs.appendChild(kAmount.knob)
-                    createShaper = () => { return AudioTone.distortion(kAmount.value) }
-                    break;
-                case 'saturation':
-                    const kHeight = new Knob('Height', -1, 1, 1, .1)
-                    const kAttack = new Knob('Attack', 0, 1, .5, .1)
-                    shaperKnobs.appendChild(kHeight.knob)
-                    shaperKnobs.appendChild(kAttack.knob)
-                    createShaper = () => { return AudioTone.saturation(kHeight.value, kAttack.value) }
-                    break;
-                default:
-                    createShaper = () => { return null }
-                    break;
-            }
-        }
-    </script>
-</html> 
+    }
+</script>

@@ -3,11 +3,12 @@ class Knob {
         const label = document.createElement('label')
         label.innerText = text
         label.htmlFor = 'knob'
-        label.style.margin = '0 .5rem 0 1rem'
+        //label.style.margin = '0 .5rem 0 1rem'
+        // label.style.marginRight = '1rem'
         const input = document.createElement('input')
         input.id = 'knob'
         input.type = 'text'
-        input.style.width = '5rem'
+        input.style = 'width:5rem; margin-left:.5rem !important; border-width:1px;'
         input.value = def
         input.onkeydown = (event) => {
             const key = Number(event.key)

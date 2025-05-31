@@ -1,4 +1,56 @@
 <!DOCTYPE html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="style/lightstyle.css">
+
+<body> 
+  <main>
+    <div>
+      <div class='title'>
+        SOUND GEN
+      </div>
+      <div class='description'>         
+        <div>Some music theory for making noise</div>
+      </div>
+    </div>
+
+    <menu class='list'> 
+        <li><a href="theory/notes.html">NOTES</a></li>
+        <li><a href="theory/scales.html">SCALES</a></li>
+        <li><a href="theory/chords.html">CHORDS</a></li>
+    </menu>
+  </main>
+
+  <footer> 
+    &copy; 2023 Jonas Geduldig
+    <span><a href='https://github.com/AcidicWorks'>AcidicWorks</a></span>
+  </footer>
+
+  <script>
+    const list = document.querySelector('.list');
+    for (const li of list.children) {
+      const R = Math.floor(brighten(Math.random() * 256));
+      const G = Math.floor(brighten(Math.random() * 256));
+      const B = Math.floor(brighten(Math.random() * 256));
+      li.style.backgroundColor = `rgb(${R},${G},${B})`;
+      const link = li.querySelector('a');
+      link.style.textDecoration = 'none';
+      li.onclick = () => { window.location.href = link.href };
+      li.onmouseenter = () => { link.style.textDecoration = 'underline' };
+      li.onmouseleave = () => { link.style.textDecoration = 'none' };
+    }
+    
+    function brighten(x) {
+      return 16 * Math.sqrt(x);
+    }
+  </script>
+</body>
+
+
+
+
+<!DOCTYPE html>
 <html>
     <head>
         <title>SoundGen</title>

@@ -19,8 +19,8 @@ class AudioGraph {
         this.canvasContext.fillStyle = this.backgroundColor
         this.canvasContext.strokeStyle = this.foregroundColor
         this.canvasContext.fillRect(0, 0, this.canvas.width, this.canvas.height)
-        this.canvasContext.lineWidth = 2
-        this.canvasContext.beginPath();
+        this.canvasContext.lineWidth = 8
+        this.canvasContext.beginPath()
 
         this.analyser.getByteTimeDomainData(this.dataArray)
         const sliceWidth = (this.canvas.width * 1.0) / this.bufferLength
@@ -28,7 +28,7 @@ class AudioGraph {
         for (let i = 0; i < this.bufferLength; i++) {
             const x = i * sliceWidth
             const v = this.dataArray[i] / 128.0
-            const y = (v * this.canvas.height) / 2
+            const y = (v * this.canvas.height) / 2 
 
             if (i === 0) 
                 this.canvasContext.moveTo(x, y)
