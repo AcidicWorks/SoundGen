@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Notes</title>
-<link rel="stylesheet" href="../style/styles.css?v=6" />
+<link rel="stylesheet" href="../style/styles.css?v=8" />
 
 <body>
     <main>
@@ -33,13 +33,10 @@
                 </select>
             </div>
         </div>
-        <div class="options-row">
+        <div class="options-row" id="shaperKnobs">
             <div class='option'>
                 <label for="shaper">Shaper</label>  
                 <select id="shaper" onchange="selectShaper()"></select>
-            </div>
-            <div class='option'>
-                <span id="shaperKnobs"></span>
             </div>
         </div>
         <div class="button-row">  
@@ -52,7 +49,7 @@
 
 <script src="../js/AudioTone.js"></script>
 <script src="../js/AudioGraph.js?v=2"></script>
-<script src="../js/knob.js?v=1"></script>
+<script src="../js/knob.js?v=2"></script>
 
 <script>
     for (let i = 0; i < AudioTone.NOTES.length; i++)
@@ -102,30 +99,37 @@
     let createShaper = () => { return null }
 
     function selectShaper() {
-        while (shaperKnobs.firstChild) 
-            shaperKnobs.removeChild(shaperKnobs.firstChild)
+        document.querySelectorAll('.knob').forEach(e => shaperKnobs.removeChild(e))
+
+        let values, select
 
         switch (shaper.value) {
             case 'bit crusher':
-                const kBits = new Knob('Bits', 1, 16, 3, 1)
-                shaperKnobs.appendChild(kBits.knob)
-                createShaper = () => { return AudioTone.bitCrusher(kBits.value) }
-                break;
+                values = arrayRange(1, 16, 3)
+                select = createSelect('Bits', 'select-bits', values, 7)
+                shaperKnobs.appendChild(select)
+                createShaper = () => AudioTone.bitCrusher(document.querySelector('#select-bits').value)
+                break
             case 'distortion':
-                const kAmount = new Knob('Amount', 0, 1, .5, .1)
-                shaperKnobs.appendChild(kAmount.knob)
-                createShaper = () => { return AudioTone.distortion(kAmount.value) }
-                break;
+                values = arrayRange(0, 1, .1)
+                select = createSelect('Amount', 'select-amount', values, .5)
+                shaperKnobs.appendChild(select)
+                createShaper = () => AudioTone.distortion(document.querySelector('#select-amount').value)
+                break
             case 'saturation':
-                const kHeight = new Knob('Height', -1, 1, 1, .1)
-                const kAttack = new Knob('Attack', 0, 1, .5, .1)
-                shaperKnobs.appendChild(kHeight.knob)
-                shaperKnobs.appendChild(kAttack.knob)
-                createShaper = () => { return AudioTone.saturation(kHeight.value, kAttack.value) }
-                break;
+                values = arrayRange(-1, 1, .1)
+                select = createSelect('Height', 'select-height', values, 1)
+                shaperKnobs.appendChild(select)
+                values = arrayRange(0, 1, .1)
+                select = createSelect('Attack', 'select-attack', values, .5)
+                shaperKnobs.appendChild(select)
+                createShaper = () => AudioTone.saturation(
+                    document.querySelector('#select-height').value,
+                    document.querySelector('#select-attack').value)
+                break
             default:
                 createShaper = () => { return null }
-                break;
+                break
         }
     }
 </script>

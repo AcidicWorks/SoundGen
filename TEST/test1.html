@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Stream + Oscillator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            border: 1px solid #eee;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .control-group {
+            margin-bottom: 15px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 200px;
+        }
+        #message {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .status {
+            font-size: 1.1em;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <h1>Combine Audio Stream with Oscillator</h1>
+
+    <button id="startStopButton">Start Audio</button>
+    <p class="status">Status: <span id="statusMessage">Inactive</span></p>
+    <p id="message"></p>
+
+    <div class="controls">
+        <h2>Audio Controls</h2>
+        <div class="control-group">
+            <label for="oscillatorType">Oscillator Type:</label>
+            <select id="oscillatorType">
+                <option value="sine">Sine</option>
+                <option value="square">Square</option>
+                <option value="sawtooth">Sawtooth</option>
+                <option value="triangle">Triangle</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label for="oscillatorFrequency">Oscillator Frequency: <span id="freqValue">440</span> Hz</label>
+            <input type="range" id="oscillatorFrequency" min="50" max="1000" value="440" step="1">
+        </div>
+        <div class="control-group">
+            <label for="oscillatorGain">Oscillator Volume: <span id="oscGainValue">0.5</span></label>
+            <input type="range" id="oscillatorGain" min="0" max="1" value="0.5" step="0.01">
+        </div>
+        <div class="control-group">
+            <label for="micGain">Microphone Volume: <span id="micGainValue">1.0</span></label>
+            <input type="range" id="micGain" min="0" max="2" value="1.0" step="0.01">
+        </div>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let mediaStreamSource = null;
+        let oscillator = null;
+        let micGainNode = null;
+        let oscGainNode = null;
+        let stream = null; // To hold the microphone stream
+
+        const startStopButton = document.getElementById('startStopButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const messageParagraph = document.getElementById('message');
+
+        const oscillatorTypeSelect = document.getElementById('oscillatorType');
+        const oscillatorFrequencyInput = document.getElementById('oscillatorFrequency');
+        const freqValueSpan = document.getElementById('freqValue');
+        const oscillatorGainInput = document.getElementById('oscillatorGain');
+        const oscGainValueSpan = document.getElementById('oscGainValue');
+        const micGainInput = document.getElementById('micGain');
+        const micGainValueSpan = document.getElementById('micGainValue');
+
+        /**
+         * Initializes and starts the audio processing.
+         */
+        async function startAudio() {
+            messageParagraph.textContent = ''; // Clear previous messages
+            try {
+                // 1. Get Microphone Access
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // 2. Create an Audio Context (if not already created)
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+
+                // If context is suspended (e.g., after initial user gesture), resume it
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
+                // 3. Create Audio Nodes
+                mediaStreamSource = audioContext.createMediaStreamSource(stream);
+                oscillator = audioContext.createOscillator();
+                micGainNode = audioContext.createGain();
+                oscGainNode = audioContext.createGain();
+
+                // 4. Configure Oscillator
+                oscillator.type = oscillatorTypeSelect.value;
+                oscillator.frequency.value = parseFloat(oscillatorFrequencyInput.value); // Initial frequency
+                oscillator.start(); // Start the oscillator
+
+                // 5. Set Initial Gain Values
+                micGainNode.gain.value = parseFloat(micGainInput.value);
+                oscGainNode.gain.value = parseFloat(oscillatorGainInput.value);
+
+                // 6. Connect Nodes
+                // Mic -> Mic Gain -> Destination
+                mediaStreamSource.connect(micGainNode);
+                micGainNode.connect(audioContext.destination);
+
+                // Oscillator -> Osc Gain -> Destination
+                oscillator.connect(oscGainNode);
+                oscGainNode.connect(audioContext.destination);
+
+                startStopButton.textContent = 'Stop Audio';
+                statusMessage.textContent = 'Active (Mic + Oscillator)';
+                startStopButton.onclick = stopAudio; // Change button action to stop
+
+                console.log('Audio stream and oscillator combined and started.');
+
+            } catch (err) {
+                console.error('Error starting audio:', err);
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    messageParagraph.textContent = 'Microphone access denied. Please allow microphone permissions in your browser settings.';
+                } else if (err.name === 'NotFoundError') {
+                    messageParagraph.textContent = 'No microphone found on this device.';
+                } else if (err.name === 'NotReadableError') {
+                    messageParagraph.textContent = 'Microphone is in use by another application.';
+                } else {
+                    messageParagraph.textContent = `Error: ${err.message}`;
+                }
+                statusMessage.textContent = 'Error';
+            }
+        }
+
+        /**
+         * Stops all audio processing and disconnects nodes.
+         */
+        function stopAudio() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop()); // Stop microphone tracks
+                stream = null;
+            }
+            if (oscillator) {
+                oscillator.stop(); // Stop the oscillator
+                oscillator.disconnect();
+                oscillator = null;
+            }
+            if (mediaStreamSource) {
+                mediaStreamSource.disconnect();
+                mediaStreamSource = null;
+            }
+            if (micGainNode) {
+                micGainNode.disconnect();
+                micGainNode = null;
+            }
+            if (oscGainNode) {
+                oscGainNode.disconnect();
+                oscGainNode = null;
+            }
+
+            // Suspend the audio context to release resources
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.suspend();
+            }
+
+            startStopButton.textContent = 'Start Audio';
+            statusMessage.textContent = 'Inactive';
+            startStopButton.onclick = startAudio; // Change button action back to start
+
+            console.log('Audio stopped.');
+        }
+
+        // --- Control Event Listeners ---
+        oscillatorTypeSelect.addEventListener('change', () => {
+            if (oscillator) {
+                oscillator.type = oscillatorTypeSelect.value;
+            }
+        });
+
+        oscillatorFrequencyInput.addEventListener('input', () => {
+            const freq = parseFloat(oscillatorFrequencyInput.value);
+            freqValueSpan.textContent = freq;
+            if (oscillator) {
+                oscillator.frequency.value = freq;
+            }
+        });
+
+        oscillatorGainInput.addEventListener('input', () => {
+            const gain = parseFloat(oscillatorGainInput.value);
+            oscGainValueSpan.textContent = gain.toFixed(2);
+            if (oscGainNode) {
+                oscGainNode.gain.value = gain;
+            }
+        });
+
+        micGainInput.addEventListener('input', () => {
+            const gain = parseFloat(micGainInput.value);
+            micGainValueSpan.textContent = gain.toFixed(2);
+            if (micGainNode) {
+                micGainNode.gain.value = gain;
+            }
+        });
+
+
+        // Initial setup for the button click handler
+        startStopButton.onclick = startAudio;
+
+        // Optional: Stop audio when the page is closed or navigated away
+        window.addEventListener('beforeunload', () => {
+            if (stream || oscillator) { // Check if either is active
+                stopAudio();
+            }
+        });
+
+    </script>
+</body>
+</html>

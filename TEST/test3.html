@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chromatic Scale from Mic Input</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 50px;
+            background-color: #f8f8f8;
+            color: #333;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        #notesContainer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            padding: 20px;
+            border-radius: 10px;
+            background-color: #fff;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+        }
+        .note-button {
+            padding: 15px 25px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background-color: #f0f0f0;
+            color: #333;
+            transition: background-color 0.2s ease, transform 0.1s ease, border-color 0.2s ease;
+            min-width: 80px;
+            text-align: center;
+        }
+        .note-button:hover {
+            background-color: #e0e0e0;
+            transform: translateY(-1px);
+        }
+        .note-button:active, .note-button.active {
+            background-color: #d0d0d0;
+            transform: translateY(0);
+        }
+        .note-button.sharp {
+            background-color: #333;
+            color: white;
+            border-color: #000;
+        }
+        .note-button.sharp:hover {
+            background-color: #555;
+        }
+        .note-button.sharp:active, .note-button.sharp.active {
+            background-color: #222;
+        }
+        #message {
+            margin-top: 20px;
+            color: red;
+            font-weight: bold;
+        }
+        #statusMessage {
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chromatic Scale from Microphone Input</h1>
+    <p>Speak into your microphone and click a note button to hear your voice shifted.</p>
+
+    <div id="controls">
+        <button id="startMicButton">Start Microphone</button>
+        <button id="stopMicButton" disabled>Stop Microphone</button>
+        <p>Status: <span id="statusMessage">Awaiting User Action</span></p>
+    </div>
+
+    <div id="notesContainer">
+        </div>
+
+    <p id="message"></p>
+
+    <script>
+        let audioContext = null;
+        let micStream = null;
+        let micSource = null;
+        let pitchShifterNode = null; // Our custom AudioWorkletNode
+        let currentActiveButton = null;
+
+        const startMicButton = document.getElementById('startMicButton');
+        const stopMicButton = document.getElementById('stopMicButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const notesContainer = document.getElementById('notesContainer');
+        const messageParagraph = document.getElementById('message');
+
+        // Frequencies for the Chromatic Scale starting from C4 (MIDI note 60)
+        // We calculate the ratio to C4 for pitch shifting purposes.
+        // A simple pitch shift by playback rate will also change tempo.
+        const chromaticScaleC4 = [
+            { name: 'C', baseFreq: 261.63, isSharp: false },
+            { name: 'C# / Db', baseFreq: 277.18, isSharp: true },
+            { name: 'D', baseFreq: 293.66, isSharp: false },
+            { name: 'D# / Eb', baseFreq: 311.13, isSharp: true },
+            { name: 'E', baseFreq: 329.63, isSharp: false },
+            { name: 'F', baseFreq: 349.23, isSharp: false },
+            { name: 'F# / Gb', baseFreq: 369.99, isSharp: true },
+            { name: 'G', baseFreq: 392.00, isSharp: false },
+            { name: 'G# / Ab', baseFreq: 415.30, isSharp: true },
+            { name: 'A', baseFreq: 440.00, isSharp: false },
+            { name: 'A# / Bb', baseFreq: 466.16, isSharp: true },
+            { name: 'B', baseFreq: 493.88, isSharp: false }
+        ];
+
+        // Reference frequency for calculating pitch ratios (e.g., C4)
+        const REFERENCE_FREQ = chromaticScaleC4[0].baseFreq; // Using C4 as the reference
+
+        /**
+         * Initializes the AudioContext if it doesn't exist and resumes it if suspended.
+         */
+        async function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // Load the AudioWorklet processor
+                try {
+                    await audioContext.audioWorklet.addModule('pitch-shifter-processor.js');
+                    console.log('AudioWorklet module loaded.');
+                } catch (e) {
+                    console.error('Failed to load AudioWorklet module:', e);
+                    messageParagraph.textContent = 'Failed to load audio processing module. Your browser might not support AudioWorklets or there\'s a file path error.';
+                    return false;
+                }
+            }
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            return true;
+        }
+
+        /**
+         * Starts microphone input and sets up the audio graph.
+         */
+        async function startMicrophone() {
+            messageParagraph.textContent = ''; // Clear previous messages
+            statusMessage.textContent = 'Requesting microphone...';
+            startMicButton.disabled = true;
+
+            const contextReady = await initAudioContext();
+            if (!contextReady) {
+                startMicButton.disabled = false;
+                return;
+            }
+
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                micSource = audioContext.createMediaStreamSource(micStream);
+
+                // Create our custom PitchShifter AudioWorkletNode
+                pitchShifterNode = new AudioWorkletNode(audioContext, 'pitch-shifter-processor');
+
+                // Set initial pitch shift ratio (1.0 for no shift)
+                pitchShifterNode.parameters.get('pitchRatio').setValueAtTime(1.0, audioContext.currentTime);
+
+                // Connect the microphone to the pitch shifter, and the shifter to destination
+                micSource.connect(pitchShifterNode);
+                pitchShifterNode.connect(audioContext.destination);
+
+                statusMessage.textContent = 'Microphone Active. Click a note!';
+                stopMicButton.disabled = false;
+
+                console.log('Microphone access granted and audio graph connected.');
+
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    messageParagraph.textContent = 'Microphone access denied. Please allow microphone permissions in your browser settings.';
+                } else if (err.name === 'NotFoundError') {
+                    messageParagraph.textContent = 'No microphone found on this device.';
+                } else if (err.name === 'NotReadableError') {
+                    messageParagraph.textContent = 'Microphone is in use by another application.';
+                } else {
+                    messageParagraph.textContent = `Error: ${err.message}`;
+                }
+                statusMessage.textContent = 'Error';
+                startMicButton.disabled = false;
+                stopMicButton.disabled = true;
+                stopMicrophone(); // Clean up any partial connections
+            }
+        }
+
+        /**
+         * Stops the microphone and disconnects audio nodes.
+         */
+        function stopMicrophone() {
+            if (micStream) {
+                micStream.getTracks().forEach(track => track.stop()); // Stop all tracks
+                micStream = null;
+            }
+            if (micSource) {
+                micSource.disconnect();
+                micSource = null;
+            }
+            if (pitchShifterNode) {
+                pitchShifterNode.disconnect();
+                pitchShifterNode = null;
+            }
+            if (audioContext && audioContext.state !== 'closed') {
+                audioContext.suspend(); // Suspend, don't close, for potential re-use
+            }
+
+            statusMessage.textContent = 'Microphone Inactive.';
+            startMicButton.disabled = false;
+            stopMicButton.disabled = true;
+
+            // Remove 'active' class from all buttons
+            if (currentActiveButton) {
+                currentActiveButton.classList.remove('active');
+                currentActiveButton = null;
+            }
+
+            console.log('Microphone stopped and audio graph disconnected.');
+        }
+
+        /**
+         * Plays a specific note by setting the pitch ratio of the AudioWorklet.
+         * @param {number} targetFreq The target frequency (Hz) for the shifted sound.
+         * @param {HTMLElement} buttonElement The button that was clicked.
+         */
+        function playChromaticNote(targetFreq, buttonElement) {
+            if (!pitchShifterNode || audioContext.state !== 'running') {
+                messageParagraph.textContent = 'Please start the microphone first!';
+                return;
+            }
+            messageParagraph.textContent = '';
+
+            // Calculate the pitch ratio based on the reference frequency
+            const pitchRatio = targetFreq / REFERENCE_FREQ;
+
+            // Set the pitchRatio parameter of the AudioWorkletNode
+            // This is a simple pitch shift that also changes tempo
+            pitchShifterNode.parameters.get('pitchRatio').setValueAtTime(pitchRatio, audioContext.currentTime);
+            console.log(`Setting pitch ratio to: ${pitchRatio.toFixed(4)} for ${buttonElement.textContent}`);
+
+            // Update active button styling
+            if (currentActiveButton) {
+                currentActiveButton.classList.remove('active');
+            }
+            buttonElement.classList.add('active');
+            currentActiveButton = buttonElement;
+        }
+
+        /**
+         * Creates buttons for each note of the chromatic scale.
+         */
+        function createNoteButtons() {
+            chromaticScaleC4.forEach(note => {
+                const button = document.createElement('button');
+                button.textContent = note.name;
+                button.classList.add('note-button');
+                if (note.isSharp) {
+                    button.classList.add('sharp');
+                }
+                button.dataset.frequency = note.baseFreq; // Store frequency as a data attribute
+
+                button.addEventListener('click', () => {
+                    playChromaticNote(parseFloat(button.dataset.frequency), button);
+                });
+
+                notesContainer.appendChild(button);
+            });
+        }
+
+        // Event listeners for main control buttons
+        startMicButton.addEventListener('click', startMicrophone);
+        stopMicButton.addEventListener('click', stopMicrophone);
+
+        // Initial setup on page load
+        window.onload = createNoteButtons;
+
+        // Optional: Stop microphone when the page is closed or navigated away
+        window.addEventListener('beforeunload', () => {
+            if (micStream) {
+                stopMicrophone();
+            }
+        });
+
+    </script>
+</body>
+</html>

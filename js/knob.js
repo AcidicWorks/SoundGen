@@ -52,3 +52,30 @@ class Knob {
         return this.knob.querySelector('input').value
     }
 }
+
+function createSelect(labelText, selectId, values, defaultValue) {
+    const label = document.createElement('label')
+    label.textContent = labelText + ' '
+    label.htmlFor = selectId
+    const select = document.createElement('select')
+    select.id = selectId
+    for (const val of values) {
+        const option = document.createElement('option')
+        option.value = val.toPrecision(2)
+        option.textContent = option.value
+        option.selected = val === defaultValue
+        select.appendChild(option)
+    }
+    const div = document.createElement('div')
+    div.classList.add('option', 'knob')
+    div.appendChild(label)
+    div.appendChild(select)
+    return div
+}
+
+function arrayRange(start, stop, step) {
+    return Array.from(
+        { length: (stop - start) / step + 1 },
+        (_, index) => start + index * step
+    );
+}

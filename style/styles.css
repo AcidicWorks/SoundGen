@@ -73,7 +73,7 @@ select, input {
 	opacity: 50%;
 }
 button {
-	font-size: 2.5rem;
+	font-size: 2rem;
 	font-family: var(--main-font);
 	border-width: 0;
 	border-radius: .5rem;
@@ -81,6 +81,5 @@ button {
 	margin: 1rem 0 !important;
 	background: var(--main-color);
 	color: white;
-	/* width: 10rem; */
 	cursor: pointer;
 }
