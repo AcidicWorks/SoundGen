@@ -1,5 +1,5 @@
 class AudioTone {
-    static NOTES = ['A', 'A#/Bb', 'B', 'C', 'C#/Db', 'D', 'D#/Eb', 'E', 'F', 'F#/Gb', 'G', 'G#/Ab'] 
+    static NOTES = ['A', 'A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#'] 
     static OCTAVES = [1, 2, 3, 4, 5, 6, 7]
     static WAVES = ['sine', 'square', 'triangle', 'sawtooth']  
     static SHAPES = ['none', 'bit crusher', 'distortion', 'saturation']
