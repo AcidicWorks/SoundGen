@@ -143,9 +143,10 @@
 
         for (const steps of chordSteps) {
             index += steps
-            promises.push(tone.play(selectFrequency(tonicIndex, index), seconds, wave.value, {analyser:graph.analyser}))
+            const freq = selectFrequency(tonicIndex, index)
+            const opts = { analyser:graph.analyser }
+            promises.push(tone.play(freq, seconds, wave.value, opts))
         }
-        console.log('scale begin', name)
         Promise.all(promises)
             .catch(error => console.log(error.message))
     }

@@ -44,7 +44,7 @@
     <div class="options-row" id='notes'></div>   
 </body>
 
-<script src="../js/AudioTone.js"></script>
+<script src="../js/AudioTone.js?v=0"></script>
 <script src="../js/AudioGraph.js"></script>
 <script src="../js/knob.js?v=0"></script>
 
@@ -141,6 +141,7 @@
         const tonicIndex = Number(tonic.value)
         const seconds = Number(duration.value)
         toneOptions.shaper = createShaper()
+        toneOptions.limit = seconds
 
         try {
             let index = 0

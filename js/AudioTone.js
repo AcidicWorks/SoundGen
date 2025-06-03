@@ -20,15 +20,12 @@ class AudioTone {
         return tonicFreq * Math.pow(AudioTone.SEMITONE, n)
     }   
 
-    play(freq, interval, waveType, options) {
+    play(freq, interval, waveType, options, inf) {
         options = options ? options : {}
 
         return new Promise((resolve, reject) => {
-            const source = this.oscillatorNode(freq, interval, waveType);
-            source.onended = () => {
-                // source.disconnect(gain)
-                resolve('tone ended')
-            }
+            const source = this.oscillatorNode(freq, options.limit ?? 0, waveType);
+            source.onended = () => resolve('tone ended')
             this.controller.signal.addEventListener('abort', () => {
                 source.stop(this.audioContext.currentTime)
                 reject(new Error('tone aborted'))
@@ -55,8 +52,8 @@ class AudioTone {
         oscillator.type = waveForm
         oscillator.frequency.value = freq
         oscillator.start(this.audioContext.currentTime)
-        // if (interval > 0)
-        //     oscillator.stop(this.audioContext.currentTime + interval)
+        if (interval > 0)
+            oscillator.stop(this.audioContext.currentTime + interval)
         return oscillator;
     }
 

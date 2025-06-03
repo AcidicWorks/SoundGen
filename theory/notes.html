@@ -102,7 +102,6 @@
         const seconds = Number(duration.value)
         const frequency = tone.semitoneStep(tonicIndex, 0, octave.value)
         toneOptions.shaper = createShaper()
-        console.log('note begin', frequency)
         tone.play(frequency, seconds, wave.value, toneOptions)
             .then(result => console.log(result))
             .catch(error => console.log(error.message))
