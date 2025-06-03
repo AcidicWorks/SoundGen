@@ -28,13 +28,13 @@ button:focus, input:focus, select:focus {
 .title {
 	font-size: 4rem;
 	text-align: center;
-	margin: 2rem 0 !important;
+	margin: 1rem 0 !important;
 }
 .options-row {
 	display: flex;
 	align-items: center;
 	justify-content: center;	
-	margin: 1rem 0 !important;
+	margin-bottom: 1rem !important;
 	font-size: 2.25rem !important;
 }
 .option {
