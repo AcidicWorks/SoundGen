@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perlin Noise Image Displacement</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            background-color: #222;
+            color: #eee;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 2px solid #00f; /* Highlight the canvas area */
+            background-color: #000;
+            display: block;
+            margin-top: 20px;
+            max-width: 90vw; /* Responsive width */
+            height: auto;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5); /* A subtle glow */
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.9em;
+            color: #ccc;
+        }
+        input[type="range"] {
+            width: 150px;
+            accent-color: #00f; /* Blue accent for sliders */
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #fileInput {
+            margin-top: 15px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: #eee;
+        }
+        .message {
+            margin-top: 10px;
+            color: orange;
+        }
+    </style>
+</head>
+<body>
+    <h1>Perlin Noise Image Displacement</h1>
+    <p>Upload an image or use the default. Adjust sliders to see the fluid effect.</p>
+
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="message" id="loadMessage"></div>
+
+    <canvas id="effectCanvas"></canvas>
+
+    <div id="controls">
+        <label>
+            Noise Scale (Zoom):
+            <input type="range" id="noiseScale" min="10" max="200" value="50">
+        </label>
+        <label>
+            Displacement Strength:
+            <input type="range" id="displacementStrength" min="0" max="50" value="15">
+        </label>
+        <label>
+            Animation Speed:
+            <input type="range" id="animationSpeed" min="0.001" max="0.1" step="0.001" value="0.01">
+        </label>
+        <button id="resetButton">Reset Effect</button>
+    </div>
+
+    <p class="message" id="statusMessage"></p>
+
+    <script>
+        const canvas = document.getElementById('effectCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true }); // Hint for browser optimization
+        const fileInput = document.getElementById('fileInput');
+        const loadMessage = document.getElementById('loadMessage');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const noiseScaleInput = document.getElementById('noiseScale');
+        const displacementStrengthInput = document.getElementById('displacementStrength');
+        const animationSpeedInput = document.getElementById('animationSpeed');
+        const resetButton = document.getElementById('resetButton');
+
+        let originalImage = new Image();
+        let animationFrameId;
+        let time = 0; // For animating the noise field
+
+        // --- Perlin Noise Implementation ---
+        // This is a common, compact implementation of 2D Perlin noise.
+        // It's adapted to simulate 3D motion by adding 'z' (our 'time' variable)
+        // to the x/y coordinates when sampling, creating a flowing effect.
+        const PerlinNoise = (function() {
+            const grad3 = [
+                [1,1,0], [-1,1,0], [1,-1,0], [-1,-1,0],
+                [1,0,1], [-1,0,1], [1,0,-1], [-1,0,-1],
+                [0,1,1], [0,-1,1], [0,1,-1], [0,-1,-1]
+            ];
+            const p = new Uint8Array(256); // Permutation table
+            const perm = new Uint8Array(512); // Doubled for wrapping
+
+            // Helper functions for interpolation and fading
+            function dot(g, x, y, z) { return g[0]*x + g[1]*y + g[2]*z; }
+            function mix(a, b, t) { return (1-t)*a + t*b; }
+            function fade(t) { return t*t*t*(t*(t*6-15)+10); }
+
+            // Initialize permutation table with random values
+            for (let i = 0; i < 256; i++) {
+                p[i] = Math.floor(Math.random() * 256);
+            }
+            // Duplicate permutation table for seamless wrapping
+            for (let i = 0; i < 512; i++) {
+                perm[i] = p[i & 255];
+            }
+
+            return {
+                /**
+                 * Generates 2D Perlin noise value.
+                 * @param {number} x X coordinate.
+                 * @param {number} y Y coordinate.
+                 * @param {number} z Z coordinate (used for animating 2D noise over time).
+                 * @returns {number} Noise value between -1 and 1.
+                 */
+                noise: function(x, y, z = 0) {
+                    // Offset x, y coordinates by z to animate the 2D noise field
+                    x += z;
+                    y += z;
+
+                    const X = Math.floor(x) & 255;
+                    const Y = Math.floor(y) & 255;
+                    // const Z = Math.floor(z) & 255; // Not directly used in 2D interpolation but good for consistency
+
+                    x -= Math.floor(x); // Fractional part of x
+                    y -= Math.floor(y); // Fractional part of y
+                    z -= Math.floor(z); // Fractional part of z (not directly used for interpolation axes here)
+
+                    const u = fade(x);
+                    const v = fade(y);
+
+                    // Hash coordinates to get permutations for 8 corners in 3D space,
+                    // but for 2D noise animated by Z, we use 4 corners.
+                    const A = perm[X] + Y;
+                    const AA = perm[A]; // For (x,y)
+                    const AB = perm[A + 1]; // For (x,y+1)
+                    const B = perm[X + 1] + Y;
+                    const BA = perm[B]; // For (x+1,y)
+                    const BB = perm[B + 1]; // For (x+1,y+1)
+
+                    // Interpolate between the 4 corners, using the gradient vectors
+                    // Note: In a true 3D Perlin, you'd use 8 corners and Z for interpolation.
+                    // This uses Z to simply shift the 2D plane being sampled.
+                    const val = mix(
+                        mix(dot(grad3[perm[AA] % 12], x, y, z),
+                            dot(grad3[perm[BA] % 12], x - 1, y, z), u),
+                        mix(dot(grad3[perm[AB] % 12], x, y - 1, z),
+                            dot(grad3[perm[BB] % 12], x - 1, y - 1, z), u), v
+                    );
+
+                    return val; // Returns value in range approximately [-sqrt(3)/2, sqrt(3)/2], commonly normalized to [-1, 1]
+                }
+            };
+        })();
+
+        // --- Image Loading and Canvas Setup ---
+        // Default image to load
+        originalImage.src = 'https://via.placeholder.com/600x400/87CEEB/FFFFFF?text=Upload+Image';
+        originalImage.crossOrigin = 'Anonymous'; // Essential for reading pixel data if loading from external URLs
+
+        originalImage.onload = () => {
+            loadMessage.textContent = '';
+            setupCanvas(originalImage);
+            startAnimation();
+        };
+
+        originalImage.onerror = () => {
+            loadMessage.textContent = 'Failed to load default image. Please upload one.';
+            statusMessage.textContent = 'Awaiting image upload...';
+        };
+
+        function setupCanvas(img) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0); // Draw the original image onto the canvas once
+            statusMessage.textContent = 'Image loaded. Adjust controls!';
+        }
+
+        // --- Effect Application ---
+        function applyPerlinEffect() {
+            if (!originalImage || !originalImage.complete || originalImage.naturalWidth === 0) {
+                return; // Ensure image is loaded before attempting to process
+            }
+
+            const noiseScale = parseFloat(noiseScaleInput.value); // Controls "zoom" of noise
+            const displacementStrength = parseFloat(displacementStrengthInput.value); // How much pixels are shifted
+            const animationSpeed = parseFloat(animationSpeedInput.value); // Speed of the noise animation
+
+            // IMPORTANT: Redraw the original image *each frame*
+            // This prevents the distortion from accumulating frame over frame,
+            // giving a clean, flowing (rather than increasingly warped) effect.
+            ctx.drawImage(originalImage, 0, 0);
+
+            // Get the current pixel data from the canvas (which is now the original image)
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data; // The array we will modify
+            const tempPixels = new Uint8ClampedArray(pixels); // A copy of the original pixels for reading from
+
+            time += animationSpeed; // Advance time for animation
+
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const i = (y * canvas.width + x) * 4; // Index for the current pixel's Red component
+
+                    // Get Perlin noise value for this pixel
+                    // Scale x, y, and time for the noise function to control its appearance
+                    // The 'time' parameter gives the animation depth
+                    const noiseX = x / noiseScale;
+                    const noiseY = y / noiseScale;
+                    const noiseValue = PerlinNoise.noise(noiseX, noiseY, time);
+
+                    // Use the noise value to determine horizontal and vertical displacement
+                    // Noise is typically in [-1, 1] range, so we scale it by displacementStrength
+                    const dx = noiseValue * displacementStrength;
+                    const dy = noiseValue * displacementStrength; // Using same noise for both axes, can be separate
+
+                    // Calculate the source pixel coordinates after displacement
+                    const sourceX = Math.floor(x + dx);
+                    const sourceY = Math.floor(y + dy);
+
+                    // Ensure the source coordinates are within the image bounds
+                    if (sourceX >= 0 && sourceX < canvas.width && sourceY >= 0 && sourceY < canvas.height) {
+                        const sourceI = (sourceY * canvas.width + sourceX) * 4; // Index of the source pixel
+
+                        // Copy RGBA values from the source pixel (from tempPixels)
+                        pixels[i] = tempPixels[sourceI];     // Red
+                        pixels[i + 1] = tempPixels[sourceI + 1]; // Green
+                        pixels[i + 2] = tempPixels[sourceI + 2]; // Blue
+                        pixels[i + 3] = tempPixels[sourceI + 3]; // Alpha
+                    } else {
+                        // If the displaced source pixel is outside the image,
+                        // set the current pixel to transparent or black to avoid artifacts.
+                        pixels[i] = 0;
+                        pixels[i + 1] = 0;
+                        pixels[i + 2] = 0;
+                        pixels[i + 3] = 0; // Transparent
+                    }
+                }
+            }
+            // Put the modified pixel data back onto the canvas
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        // --- Animation Loop Control ---
+        function animate() {
+            applyPerlinEffect();
+            animationFrameId = requestAnimationFrame(animate); // Request next frame
+        }
+
+        function stopAnimation() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId); // Stop the animation
+                animationFrameId = null;
+            }
+        }
+
+        function startAnimation() {
+            stopAnimation(); // Ensure no multiple animations are running
+            animate(); // Start the animation
+        }
+
+        // --- Event Listeners for Controls ---
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                loadMessage.textContent = 'Loading image...';
+                statusMessage.textContent = '';
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage = new Image();
+                    originalImage.onload = () => {
+                        loadMessage.textContent = 'Image loaded!';
+                        setupCanvas(originalImage);
+                        time = 0; // Reset animation time for new image
+                        startAnimation();
+                    };
+                    originalImage.onerror = () => {
+                        loadMessage.textContent = 'Failed to load image. Please try another file.';
+                        statusMessage.textContent = '';
+                    };
+                    originalImage.src = e.target.result; // Set image source to the selected file
+                };
+                reader.readAsDataURL(file); // Read the file as a Data URL
+            } else {
+                loadMessage.textContent = 'No file selected.';
+            }
+        });
+
+        // Re-start animation when slider values change to apply new parameters
+        noiseScaleInput.addEventListener('input', startAnimation);
+        displacementStrengthInput.addEventListener('input', startAnimation);
+        animationSpeedInput.addEventListener('input', startAnimation);
+
+        resetButton.addEventListener('click', () => {
+            stopAnimation(); // Stop current animation
+            time = 0; // Reset animation time
+            // Reset slider values to default
+            noiseScaleInput.value = 50;
+            displacementStrengthInput.value = 15;
+            animationSpeedInput.value = 0.01;
+            setupCanvas(originalImage); // Redraw the original image (clearing effect)
+            startAnimation(); // Start animation with default settings
+            statusMessage.textContent = 'Settings reset.';
+        });
+
+        // Initial call to start the animation once the default image loads
+        // (Handled by originalImage.onload callback)
+    </script>
+</body>
+</html>

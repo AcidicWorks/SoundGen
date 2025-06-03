@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Notes</title>
-<link rel="stylesheet" href="../style/styles.css?v=8" />
+<link rel="stylesheet" href="../style/styles.css?v=9" />
 
 <body>
     <main>
@@ -27,8 +27,8 @@
                     <option value="0.50">0.50</option>
                     <option value="0.75">0.75</option>
                     <option value="1.00">1.00</option>
-                    <option value="2.00" selected>2.00</option>
-                    <option value="4.00">4.00</option>
+                    <option value="2.00">2.00</option>
+                    <option value="4.00" selected>4.00</option>
                     <option value="60">60</option>
                 </select>
             </div>
@@ -47,20 +47,36 @@
     </main>
 </body>
 
-<script src="../js/AudioTone.js"></script>
+<script src="../js/AudioTone.js?v=0"></script>
 <script src="../js/AudioGraph.js?v=2"></script>
 <script src="../js/knob.js?v=2"></script>
 
 <script>
+        window.matchMedia("(orientation: portrait)")
+            .addEventListener('change', pageUpdate);
+
+        let isPortrait
+        pageUpdate()
+        
+        function pageUpdate() {
+            const newOrientation = window.matchMedia("(orientation: portrait)").matches
+            if (isPortrait === undefined)
+                isPortrait = newOrientation;
+            else if (isPortrait !== newOrientation)
+                location.reload()
+        }
+</script>
+
+<script>
     for (let i = 0; i < AudioTone.NOTES.length; i++)
         tonic.appendChild(new Option(AudioTone.NOTES[i], i))
-    tonic.options[3].selected = true
+    tonic.options[0].selected = true
     for (let i = 0; i < AudioTone.OCTAVES.length; i++)
         octave.appendChild(new Option(AudioTone.OCTAVES[i], i + 1))
-    octave.options[3].selected = true
+    octave.options[2].selected = true
     for (let i = 0; i < AudioTone.WAVES.length; i++)
         wave.appendChild(new Option(AudioTone.WAVES[i], AudioTone.WAVES[i]))
-    wave.options[3].selected = true
+    wave.options[0].selected = true
     for (let i = 0; i < AudioTone.SHAPES.length; i++)
         shaper.appendChild(new Option(AudioTone.SHAPES[i], AudioTone.SHAPES[i]))
     shaper.options[0].selected = true

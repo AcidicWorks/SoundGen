@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meniscus Fluid Effect on Dark Regions</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            background-color: #222;
+            color: #eee;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 20px;
+        }
+        canvas {
+            border: 2px solid #00f;
+            background-color: #000;
+            display: block;
+            margin-top: 20px;
+            max-width: 90vw;
+            height: auto;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.9em;
+            color: #ccc;
+        }
+        input[type="range"] {
+            width: 150px;
+            accent-color: #00f;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #fileInput {
+            margin-top: 15px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: #eee;
+        }
+        .message {
+            margin-top: 10px;
+            color: orange;
+        }
+    </style>
+</head>
+<body>
+    <h1>Meniscus Fluid Effect on Dark Regions</h1>
+    <p>Upload an image. Fluid-like connections will appear on darker areas.</p>
+
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="message" id="loadMessage"></div>
+
+    <canvas id="effectCanvas"></canvas>
+
+    <div id="controls">
+        <label>
+            Grayscale Threshold:
+            <input type="range" id="threshold" min="0" max="255" value="100">
+        </label>
+        <label>
+            Fluid Opacity:
+            <input type="range" id="fluidOpacity" min="0" max="1" step="0.01" value="0.7">
+        </label>
+        <label>
+            Noise Scale:
+            <input type="range" id="noiseScale" min="10" max="200" value="50">
+        </label>
+        <label>
+            Animation Speed:
+            <input type="range" id="animationSpeed" min="0.001" max="0.1" step="0.001" value="0.01">
+        </label>
+        <button id="resetButton">Reset Settings</button>
+    </div>
+
+    <p class="message" id="statusMessage"></p>
+
+    <script>
+        const canvas = document.getElementById('effectCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const fileInput = document.getElementById('fileInput');
+        const loadMessage = document.getElementById('loadMessage');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const thresholdInput = document.getElementById('threshold');
+        const fluidOpacityInput = document.getElementById('fluidOpacity');
+        const noiseScaleInput = document.getElementById('noiseScale');
+        const animationSpeedInput = document.getElementById('animationSpeed');
+        const resetButton = document.getElementById('resetButton');
+
+        let originalImage = new Image();
+        let animationFrameId;
+        let time = 0; // For animating the Perlin noise
+
+        // --- Perlin Noise Implementation ---
+        // This is a common, compact implementation of 2D Perlin noise,
+        // adapted to be animated by a Z-coordinate (our 'time' variable).
+        const PerlinNoise = (function() {
+            const grad3 = [
+                [1,1,0], [-1,1,0], [1,-1,0], [-1,-1,0],
+                [1,0,1], [-1,0,1], [1,0,-1], [-1,0,-1],
+                [0,1,1], [0,-1,1], [0,1,-1], [0,-1,-1]
+            ];
+            const p = new Uint8Array(256);
+            const perm = new Uint8Array(512);
+
+            function dot(g, x, y, z) { return g[0]*x + g[1]*y + g[2]*z; }
+            function mix(a, b, t) { return (1-t)*a + t*b; }
+            function fade(t) { return t*t*t*(t*(t*6-15)+10); }
+
+            for (let i = 0; i < 256; i++) {
+                p[i] = Math.floor(Math.random() * 256);
+            }
+            for (let i = 0; i < 512; i++) {
+                perm[i] = p[i & 255];
+            }
+
+            return {
+                noise: function(x, y, z = 0) {
+                    x += z; y += z; // Animate 2D noise by shifting coordinates with Z
+                    const X = Math.floor(x) & 255;
+                    const Y = Math.floor(y) & 255;
+
+                    x -= Math.floor(x);
+                    y -= Math.floor(y);
+                    z -= Math.floor(z); // Not used directly in 2D interpolation
+
+                    const u = fade(x);
+                    const v = fade(y);
+
+                    const A = perm[X] + Y;
+                    const AA = perm[A];
+                    const AB = perm[A + 1];
+                    const B = perm[X + 1] + Y;
+                    const BA = perm[B];
+                    const BB = perm[B + 1];
+
+                    return mix(mix(dot(grad3[perm[AA] % 12], x, y, z),
+                                        dot(grad3[perm[BA] % 12], x - 1, y, z), u),
+                                    mix(dot(grad3[perm[AB] % 12], x, y - 1, z),
+                                        dot(grad3[perm[BB] % 12], x - 1, y - 1, z), u), v);
+                }
+            };
+        })();
+        // --- END Perlin Noise Implementation ---
+
+        // Default image (choose one with some distinct dark regions for best effect)
+        originalImage.src = 'https://via.placeholder.com/600x400/111111/FFFFFF?text=Text+or+Shapes';
+        originalImage.crossOrigin = 'Anonymous';
+
+        originalImage.onload = () => {
+            loadMessage.textContent = '';
+            setupCanvas(originalImage);
+            startAnimation(); // Start animation loop
+        };
+
+        originalImage.onerror = () => {
+            loadMessage.textContent = 'Failed to load default image. Please upload one.';
+            statusMessage.textContent = 'Awaiting image upload...';
+        };
+
+        function setupCanvas(img) {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            // Initially, just draw the image. Effects will be applied in the animation loop.
+            ctx.drawImage(img, 0, 0);
+            statusMessage.textContent = 'Image loaded. Adjust controls!';
+        }
+
+        /**
+         * Converts the current original image to grayscale and applies a threshold.
+         * Pixels darker than the threshold become black (0), others white (255).
+         * @returns {ImageData} The thresholded binary image data.
+         */
+        function getThresholdedBinaryImage() {
+            ctx.drawImage(originalImage, 0, 0); // Draw original to a temporary context
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            const threshold = parseFloat(thresholdInput.value);
+
+            for (let i = 0; i < pixels.length; i += 4) {
+                const r = pixels[i];
+                const g = pixels[i + 1];
+                const b = pixels[i + 2];
+
+                const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                const val = gray < threshold ? 0 : 255; // 0 for dark, 255 for light
+                pixels[i] = val;
+                pixels[i + 1] = val;
+                pixels[i + 2] = val;
+                pixels[i + 3] = 255; // Keep opaque
+            }
+            return imageData;
+        }
+
+        /**
+         * Generates the fluid layer using Perlin noise and applies it
+         * as a "meniscus" effect on darker regions.
+         */
+        function applyMeniscusFluidEffect() {
+            if (!originalImage || !originalImage.complete || originalImage.naturalWidth === 0) {
+                return;
+            }
+
+            const width = canvas.width;
+            const height = canvas.height;
+            const fluidOpacity = parseFloat(fluidOpacityInput.value);
+            const noiseScale = parseFloat(noiseScaleInput.value);
+            const animationSpeed = parseFloat(animationSpeedInput.value);
+
+            time += animationSpeed; // Advance animation time
+
+            // 1. Get the thresholded binary image from the original
+            // This defines the "dark regions" where the fluid will connect
+            const thresholdedImageData = getThresholdedBinaryImage();
+            const thresholdedPixels = thresholdedImageData.data;
+
+            // 2. Create a fresh canvas to draw the fluid layer.
+            // This prevents modifying the original pixel data directly.
+            const fluidCanvas = document.createElement('canvas');
+            fluidCanvas.width = width;
+            fluidCanvas.height = height;
+            const fluidCtx = fluidCanvas.getContext('2d');
+            const fluidImageData = fluidCtx.getImageData(0, 0, width, height);
+            const fluidPixels = fluidImageData.data;
+
+            // 3. Generate the Perlin noise fluid pattern
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = (y * width + x) * 4;
+
+                    // Get Perlin noise value for this pixel, animated by time
+                    const noiseVal = PerlinNoise.noise(x / noiseScale, y / noiseScale, time);
+                    // Map noise from approx [-1, 1] to [0, 1] for brightness
+                    const brightness = (noiseVal + 1) * 0.5; // From 0 to 1
+
+                    // Create a subtle fluid color (e.g., a dark blue/teal)
+                    const fluidR = 0;
+                    const fluidG = 0;
+                    const fluidB = 50; // Dark blue
+                    const fluidA = brightness * 255; // Vary alpha based on noise
+
+                    fluidPixels[i] = fluidR;
+                    fluidPixels[i + 1] = fluidG;
+                    fluidPixels[i + 2] = fluidB;
+                    fluidPixels[i + 3] = fluidA;
+                }
+            }
+            fluidCtx.putImageData(fluidImageData, 0, 0); // Apply fluid pattern to fluidCanvas
+
+            // 4. Draw the original image onto the main canvas
+            ctx.drawImage(originalImage, 0, 0);
+
+            // 5. Apply the fluid layer as a blending overlay
+            // We use the thresholded image to control the blending.
+            // Dark regions (0) in the thresholded image will allow more fluid to show through.
+            // Light regions (255) will mask the fluid.
+
+            const finalImageData = ctx.getImageData(0, 0, width, height);
+            const finalPixels = finalImageData.data;
+            const fluidRawPixels = fluidCtx.getImageData(0, 0, width, height).data; // Get fluid pixels again
+
+            for (let i = 0; i < finalPixels.length; i += 4) {
+                // Get the R value of the thresholded pixel (0 for dark, 255 for light)
+                const maskVal = thresholdedPixels[i]; // Assuming R=G=B for thresholded
+
+                // Calculate the influence of the fluid.
+                // If maskVal is 0 (dark), fluidInfluence is 1.
+                // If maskVal is 255 (light), fluidInfluence is 0.
+                const fluidInfluence = 1 - (maskVal / 255); // Inverse of lightness
+
+                const originalR = finalPixels[i];
+                const originalG = finalPixels[i + 1];
+                const originalB = finalPixels[i + 2];
+                const originalA = finalPixels[i + 3];
+
+                const fluidR = fluidRawPixels[i];
+                const fluidG = fluidRawPixels[i + 1];
+                const fluidB = fluidRawPixels[i + 2];
+                const fluidA = fluidRawPixels[i + 3];
+
+                // Blend original pixel with fluid pixel
+                // The fluid's alpha is also influenced by fluidOpacity control
+                const blendAlpha = (fluidA / 255) * fluidInfluence * fluidOpacity;
+
+                finalPixels[i] = originalR * (1 - blendAlpha) + fluidR * blendAlpha;
+                finalPixels[i + 1] = originalG * (1 - blendAlpha) + fluidG * blendAlpha;
+                finalPixels[i + 2] = originalB * (1 - blendAlpha) + fluidB * blendAlpha;
+                // Keep original alpha, or blend as needed
+                finalPixels[i + 3] = originalA; // Mostly keep original alpha
+            }
+            ctx.putImageData(finalImageData, 0, 0);
+
+            // Optional: Draw a subtle "meniscus" glow around dark regions.
+            // This is a simpler way to hint at the curvature without complex calculations.
+            // You can experiment with blurring the thresholded image slightly, then drawing.
+            ctx.filter = 'blur(3px)'; // Apply a slight blur
+            ctx.globalCompositeOperation = 'overlay'; // Or 'screen', 'lighten'
+            ctx.drawImage(thresholdedImageData.canvas ? thresholdedImageData.canvas : createTempCanvasFromImageData(thresholdedImageData), 0, 0); // Draw blurred thresholded image
+            ctx.filter = 'none'; // Reset filter
+            ctx.globalCompositeOperation = 'source-over'; // Reset blend mode
+        }
+
+        // Helper to convert ImageData back to a canvas for drawImage if needed
+        function createTempCanvasFromImageData(imageData) {
+            const c = document.createElement('canvas');
+            c.width = imageData.width;
+            c.height = imageData.height;
+            const ct = c.getContext('2d');
+            ct.putImageData(imageData, 0, 0);
+            return c;
+        }
+
+
+        // --- Animation Loop Control ---
+        function animate() {
+            applyMeniscusFluidEffect();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function stopAnimation() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        function startAnimation() {
+            stopAnimation();
+            animate();
+        }
+
+        // --- Event Listeners for User Interaction ---
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                loadMessage.textContent = 'Loading image...';
+                statusMessage.textContent = '';
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage = new Image();
+                    originalImage.onload = () => {
+                        loadMessage.textContent = 'Image loaded!';
+                        setupCanvas(originalImage);
+                        time = 0; // Reset animation time for new image
+                        startAnimation();
+                    };
+                    originalImage.onerror = () => {
+                        loadMessage.textContent = 'Failed to load image. Please try another file.';
+                        statusMessage.textContent = '';
+                    };
+                    originalImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                loadMessage.textContent = 'No file selected.';
+            }
+        });
+
+        // Re-start animation (to apply new parameters) whenever slider values change
+        thresholdInput.addEventListener('input', startAnimation);
+        fluidOpacityInput.addEventListener('input', startAnimation);
+        noiseScaleInput.addEventListener('input', startAnimation);
+        animationSpeedInput.addEventListener('input', startAnimation);
+
+        resetButton.addEventListener('click', () => {
+            stopAnimation();
+            time = 0;
+            // Reset slider values to default
+            thresholdInput.value = 100;
+            fluidOpacityInput.value = 0.7;
+            noiseScaleInput.value = 50;
+            animationSpeedInput.value = 0.01;
+            setupCanvas(originalImage); // Redraw original image
+            startAnimation();
+            statusMessage.textContent = 'Settings reset.';
+        });
+
+        // Initial call to start animation once default image loads
+        // (handled by originalImage.onload)
+    </script>
+</body>
+</html>

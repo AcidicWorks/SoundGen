@@ -9,27 +9,27 @@
         <div class='options-row'>
             <div class='option'>
                 <label>Root</label>
-                <select id='tonics'></select>
+                <select id='tonic'></select>
             </div>
             <div class='option'>
                 <label>Octave</label> 
-                <select id='octaves'>
-                    <option value='1'>1</option>
-                    <option value='2' selected>2</option>
-                    <option value='3'>3</option>
+                <select id='octave'>
+                    <!-- <option value='1'>1</option>
+                    <option value='2'>2</option>
+                    <option value='3' selected>3</option>
                     <option value='4'>4</option>
                     <option value='5'>5</option>
                     <option value='6'>6</option>
-                    <option value='7'>7</option>
+                    <option value='7'>7</option> -->
                 </select>
             </div>
             <div class='option'>
-                <label>Wave form</label>
-                <select id='waveForm'>
-                    <option value='sine'>sine</option>
+                <label>Wave</label>
+                <select id='wave'>
+                    <!-- <option value='sine' selected>sine</option>
                     <option value='square'>square</option>
                     <option value='triangle'>triangle</option>
-                    <option value='sawtooth' selected>sawtooth</option>
+                    <option value='sawtooth'>sawtooth</option> -->
                 </select>
             </div>
             <div class='option'>
@@ -45,8 +45,6 @@
                     <option value='60.00'>60</option>
                 </select>
             </div>
-            <!-- <label>Show frequencies</label>
-            <input id='showFreq' type='checkbox' /> -->
         </div>
         <canvas id='graph'></canvas>
         <div class="button-row" id="buttons" />  
@@ -54,8 +52,39 @@
     <div class="options-row" id='notes'></div>   
 </body>
 
-<script src="../js/AudioTone.js"></script>
+<script src="../js/AudioTone.js?v=0"></script>
 <script src="../js/AudioGraph.js"></script>
+
+<script>
+        window.matchMedia("(orientation: portrait)")
+            .addEventListener('change', pageUpdate);
+
+        let isPortrait
+        pageUpdate()
+        
+        function pageUpdate() {
+            const newOrientation = window.matchMedia("(orientation: portrait)").matches
+            if (isPortrait === undefined)
+                isPortrait = newOrientation;
+            else if (isPortrait !== newOrientation)
+                location.reload()
+        }
+</script>
+
+<script>
+    for (let i = 0; i < AudioTone.NOTES.length; i++)
+        tonic.appendChild(new Option(AudioTone.NOTES[i], i))
+    tonic.options[3].selected = true
+    for (let i = 0; i < AudioTone.OCTAVES.length; i++)
+        octave.appendChild(new Option(AudioTone.OCTAVES[i], i + 1))
+    octave.options[2].selected = true
+    for (let i = 0; i < AudioTone.WAVES.length; i++)
+        wave.appendChild(new Option(AudioTone.WAVES[i], AudioTone.WAVES[i]))
+    wave.options[0].selected = true
+    // for (let i = 0; i < AudioTone.SHAPES.length; i++)
+    //     shaper.appendChild(new Option(AudioTone.SHAPES[i], AudioTone.SHAPES[i]))
+    // shaper.options[0].selected = true
+</script>
 
 <script>
     const graphOptions = {
@@ -64,7 +93,7 @@
     }
     const tone = new AudioTone()
 
-    const NOTES = ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']
+    // const NOTES = ['A','A#','B','C','C#','D','D#','E','F','F#','G','G#']
     const CHORDS = {
         'major':                 [0, 4, 3],
         'minor':                 [0, 3, 4],
@@ -77,13 +106,13 @@
         'diminished 7th':        [0, 3, 3, 3],
     }
 
-    for (let i = 0; i < NOTES.length; i++) {
-        const note = NOTES[i]
-        const option = document.createElement('option')
-        option.textContent = note
-        option.value = i
-        tonics.appendChild(option)
-    }
+    // for (let i = 0; i < NOTES.length; i++) {
+    //     const note = NOTES[i]
+    //     const option = document.createElement('option')
+    //     option.textContent = note
+    //     option.value = i
+    //     tonic.appendChild(option)
+    // }
 
     for (const chordName of Object.keys(CHORDS)) {
         const div = document.createElement('div')
@@ -105,7 +134,7 @@
     async function playChord(name) {
         tone.stop()
         const chordSteps = CHORDS[name]
-        const tonicIndex = Number(tonics.value)
+        const tonicIndex = Number(tonic.value)
         const seconds = Number(duration.value)
         let promises = []
         let index = 0
@@ -114,7 +143,7 @@
 
         for (const steps of chordSteps) {
             index += steps
-            promises.push(tone.play(selectFrequency(tonicIndex, index), seconds, waveForm.value, {analyser:graph.analyser}))
+            promises.push(tone.play(selectFrequency(tonicIndex, index), seconds, wave.value, {analyser:graph.analyser}))
         }
         console.log('scale begin', name)
         Promise.all(promises)
@@ -122,8 +151,8 @@
     }
 
     function selectFrequency(tonicIndex, index) {
-        const frequency = tone.semitoneStep(tonicIndex, index, octaves.value)
-        notes.textContent += `${NOTES[(tonicIndex + index) % NOTES.length]} `
+        const frequency = tone.semitoneStep(tonicIndex, index, octave.value)
+        notes.textContent += `${AudioTone.NOTES[(tonicIndex + index) % AudioTone.NOTES.length]} `
         // if (showFreq.checked)
         //     notes.textContent += `[${(frequency.toFixed(3))}] `
         return frequency

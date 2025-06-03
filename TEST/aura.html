@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fluid/Aurora Image Effect</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            background-color: #222;
+            color: #eee;
+        }
+        h1 {
+            color: #fff;
+        }
+        canvas {
+            border: 2px solid #00f; /* Highlight the canvas */
+            background-color: #000;
+            display: block;
+            margin-top: 20px;
+            max-width: 90vw; /* Responsive width */
+            height: auto;
+        }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 0.9em;
+        }
+        input[type="range"] {
+            width: 150px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #fileInput {
+            margin-top: 15px;
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        .message {
+            margin-top: 10px;
+            color: orange;
+        }
+    </style>
+</head>
+<body>
+    <h1>Fluid / Aurora Image Effect (Canvas API)</h1>
+
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="message" id="loadMessage"></div>
+
+    <canvas id="effectCanvas"></canvas>
+
+    <div id="controls">
+        <label>
+            Displacement Strength:
+            <input type="range" id="displacementStrength" min="0" max="20" value="5">
+        </label>
+        <label>
+            Displacement Speed:
+            <input type="range" id="displacementSpeed" min="0.01" max="0.5" step="0.01" value="0.1">
+        </label>
+        <label>
+            Color Shift Speed:
+            <input type="range" id="colorShiftSpeed" min="0.001" max="0.1" step="0.001" value="0.01">
+        </label>
+        <label>
+            Saturation:
+            <input type="range" id="saturation" min="0" max="2" step="0.01" value="1.0">
+        </label>
+        <button id="resetButton">Reset Effect</button>
+    </div>
+
+    <p class="message" id="statusMessage"></p>
+
+    <script>
+        const canvas = document.getElementById('effectCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true }); // optimize for read operations
+        const fileInput = document.getElementById('fileInput');
+        const loadMessage = document.getElementById('loadMessage');
+        const statusMessage = document.getElementById('statusMessage');
+
+        const displacementStrengthInput = document.getElementById('displacementStrength');
+        const displacementSpeedInput = document.getElementById('displacementSpeed');
+        const colorShiftSpeedInput = document.getElementById('colorShiftSpeed');
+        const saturationInput = document.getElementById('saturation');
+        const resetButton = document.getElementById('resetButton');
+
+        let originalImage = new Image();
+        let animationFrameId;
+        let time = 0; // For animating the effect over time
+
+        // Default image (replace with your own path or remove for file input only)
+        originalImage.src = 'https://via.placeholder.com/600x400/87CEEB/FFFFFF?text=Upload+Image';
+        originalImage.crossOrigin = 'Anonymous'; // Needed for cross-origin images if loading from URL
+
+        originalImage.onload = () => {
+            loadMessage.textContent = '';
+            setupCanvas(originalImage);
+            startAnimation();
+        };
+
+        originalImage.onerror = () => {
+            loadMessage.textContent = 'Failed to load default image. Please upload one.';
+            statusMessage.textContent = 'Awaiting image upload...';
+        };
+
+        function setupCanvas(img) {
+            // Set canvas dimensions to match image dimensions for 1:1 pixel mapping
+            canvas.width = img.width;
+            canvas.height = img.height;
+            // Draw the original image once
+            ctx.drawImage(img, 0, 0);
+            statusMessage.textContent = 'Image loaded. Adjust controls!';
+        }
+
+        function applyFluidEffect() {
+            if (!originalImage || !originalImage.complete || originalImage.naturalWidth === 0) {
+                // Image not loaded or invalid
+                return;
+            }
+
+            // Get current control values
+            const displacementStrength = parseFloat(displacementStrengthInput.value);
+            const displacementSpeed = parseFloat(displacementSpeedInput.value);
+            const colorShiftSpeed = parseFloat(colorShiftSpeedInput.value);
+            const saturation = parseFloat(saturationInput.value);
+
+            // Re-draw the original image to clear previous effects
+            ctx.drawImage(originalImage, 0, 0);
+
+            // Get the current pixel data
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            const tempPixels = new Uint8ClampedArray(pixels); // Copy to read from original pixels
+
+            // Update time for animation
+            time += displacementSpeed;
+
+            for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                    const i = (y * canvas.width + x) * 4; // Index for current pixel (R)
+
+                    // --- Fluid-like Displacement ---
+                    // Use sine/cosine waves for displacement, making it flow
+                    // The 'time' variable makes the waves move
+                    const dx = Math.sin(x * 0.05 + time) * displacementStrength;
+                    const dy = Math.cos(y * 0.05 + time * 0.7) * displacementStrength;
+
+                    // Calculate the source pixel coordinates for displacement
+                    const sourceX = Math.floor(x + dx);
+                    const sourceY = Math.floor(y + dy);
+
+                    // Ensure source coordinates are within bounds
+                    if (sourceX >= 0 && sourceX < canvas.width && sourceY >= 0 && sourceY < canvas.height) {
+                        const sourceI = (sourceY * canvas.width + sourceX) * 4;
+
+                        // Apply the displaced pixel data
+                        pixels[i] = tempPixels[sourceI];     // Red
+                        pixels[i + 1] = tempPixels[sourceI + 1]; // Green
+                        pixels[i + 2] = tempPixels[sourceI + 2]; // Blue
+                        pixels[i + 3] = tempPixels[sourceI + 3]; // Alpha
+                    } else {
+                        // If source is out of bounds, make it transparent or black
+                        pixels[i] = 0;
+                        pixels[i + 1] = 0;
+                        pixels[i + 2] = 0;
+                        pixels[i + 3] = 0; // Make transparent
+                    }
+
+                    // --- Aurora-like Color Shift & Saturation ---
+                    // Apply a subtle hue rotation based on time and pixel position
+                    // This creates a shimmering color effect
+                    const hueShift = Math.sin((x + y) * 0.01 + time * colorShiftSpeed) * 60; // Shift by +/- 60 degrees
+
+                    // Convert RGB to HSL (approximate for simplicity, full conversion is complex)
+                    const r = pixels[i] / 255;
+                    const g = pixels[i + 1] / 255;
+                    const b = pixels[i + 2] / 255;
+
+                    const max = Math.max(r, g, b);
+                    const min = Math.min(r, g, b);
+                    let h, s, l = (max + min) / 2;
+
+                    if (max === min) {
+                        h = s = 0; // achromatic
+                    } else {
+                        const d = max - min;
+                        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                        switch (max) {
+                            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                            case g: h = (b - r) / d + 2; break;
+                            case b: h = (r - g) / d + 4; break;
+                        }
+                        h /= 6;
+                    }
+
+                    // Apply hue shift and saturation adjustment
+                    h = (h + hueShift / 360) % 1; // Add shift, wrap around 0-1
+                    s *= saturation; // Adjust saturation
+
+                    // Convert HSL back to RGB
+                    const hue2rgb = (p, q, t) => {
+                        if (t < 0) t += 1;
+                        if (t > 1) t -= 1;
+                        if (t < 1/6) return p + (q - p) * 6 * t;
+                        if (t < 1/2) return q;
+                        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                        return p;
+                    };
+
+                    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                    const p = 2 * l - q;
+
+                    pixels[i] = Math.round(hue2rgb(p, q, h + 1/3) * 255);   // Red
+                    pixels[i + 1] = Math.round(hue2rgb(p, q, h) * 255);     // Green
+                    pixels[i + 2] = Math.round(hue2rgb(p, q, h - 1/3) * 255); // Blue
+                }
+            }
+
+            // Put the modified pixel data back onto the canvas
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        function animate() {
+            applyFluidEffect();
+            animationFrameId = requestAnimationFrame(animate);
+        }
+
+        function stopAnimation() {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        function startAnimation() {
+            stopAnimation(); // Ensure no multiple animations are running
+            animate();
+        }
+
+        // --- Event Listeners ---
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                loadMessage.textContent = 'Loading image...';
+                statusMessage.textContent = '';
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage = new Image();
+                    originalImage.onload = () => {
+                        loadMessage.textContent = 'Image loaded!';
+                        setupCanvas(originalImage);
+                        time = 0; // Reset time for new image
+                        startAnimation();
+                    };
+                    originalImage.onerror = () => {
+                        loadMessage.textContent = 'Failed to load image. Please try another file.';
+                        statusMessage.textContent = '';
+                    };
+                    originalImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            } else {
+                loadMessage.textContent = 'No file selected.';
+            }
+        });
+
+        // Add event listeners for sliders to re-apply effect immediately
+        displacementStrengthInput.addEventListener('input', startAnimation);
+        displacementSpeedInput.addEventListener('input', startAnimation);
+        colorShiftSpeedInput.addEventListener('input', startAnimation);
+        saturationInput.addEventListener('input', startAnimation);
+
+        resetButton.addEventListener('click', () => {
+            stopAnimation();
+            time = 0; // Reset animation time
+            displacementStrengthInput.value = 5;
+            displacementSpeedInput.value = 0.1;
+            colorShiftSpeedInput.value = 0.01;
+            saturationInput.value = 1.0;
+            // Redraw original image and restart animation
+            setupCanvas(originalImage);
+            startAnimation();
+            statusMessage.textContent = 'Settings reset.';
+        });
+
+        // Start animation after default image loads or an image is uploaded
+        // (Handled by originalImage.onload and fileInput.addEventListener)
+    </script>
+</body>
+</html>
